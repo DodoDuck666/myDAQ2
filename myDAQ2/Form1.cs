@@ -5,6 +5,7 @@ using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
 using System.Windows.Forms.DataVisualization.Charting;
+using System.Globalization;
 
 namespace myDAQ2
 {
@@ -275,7 +276,7 @@ namespace myDAQ2
                     if (sfd.ShowDialog() == DialogResult.OK)
                     {
                         fileWriter = new StreamWriter(sfd.FileName);
-                        fileWriter.WriteLine("Tick,S_mean,A_LED");
+                        fileWriter.WriteLine("Tick,SampleIndex,TimeSec,DriveAI0_V,DetectedAI1_V,Multiplied_V2,LockIn_ALED_V,S_mean,A_LED_LminusB_V");
                     }
                     else return;
                 }
@@ -299,13 +300,19 @@ namespace myDAQ2
             try
             {
                 int samples = (int)numSamples.Value;
+                double sampleRate = (double)numSampleRate.Value;
                 double a_g = (double)numLedAmp.Value;
+                double tickPeriodSec = (double)numTimerInterval.Value / 1000.0;
 
                 // Execute finite read
                 double[,] data = readerAI.ReadMultiSample(samples);
                 double sumMult = 0;
                 double minDetectSig = double.MaxValue;
                 double maxDetectSig = double.MinValue;
+
+                double[] driveSeries = new double[samples];
+                double[] detectSeries = new double[samples];
+                double[] multSeries = new double[samples];
 
                 chartDrive.Series[0].Points.Clear();
                 chartDetected.Series[0].Points.Clear();
@@ -318,7 +325,10 @@ namespace myDAQ2
                     double detectSig = data[1, i]; // AI1
                     double multSig = driveSig * detectSig;
 
-                    // Plot raw scopes (optional: downsample for UI performance if sample size is huge)
+                    driveSeries[i] = driveSig;
+                    detectSeries[i] = detectSig;
+                    multSeries[i] = multSig;
+
                     chartDrive.Series[0].Points.AddY(driveSig);
                     chartDetected.Series[0].Points.AddY(detectSig);
                     chartMultiplied.Series[0].Points.AddY(multSig);
@@ -340,7 +350,23 @@ namespace myDAQ2
 
                 if (fileWriter != null)
                 {
-                    fileWriter.WriteLine($"{measurementTick},{s_mean:F6},{a_led:F6}");
+                    for (int i = 0; i < samples; i++)
+                    {
+                        double timeSec = measurementTick * tickPeriodSec + (i / sampleRate);
+                        fileWriter.WriteLine(
+                            string.Format(
+                                CultureInfo.InvariantCulture,
+                                "{0},{1},{2:F9},{3:F9},{4:F9},{5:F9},{6:F9},{7:F9},{8:F9}",
+                                measurementTick,
+                                i,
+                                timeSec,
+                                driveSeries[i],
+                                detectSeries[i],
+                                multSeries[i],
+                                a_led,
+                                s_mean,
+                                a_led_range));
+                    }
                 }
 
                 measurementTick++;
