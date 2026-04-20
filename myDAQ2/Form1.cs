@@ -23,6 +23,7 @@ namespace myDAQ2
         private Button btnStart;
         private Button btnStop;
         private Label lblAled;
+        private Label lblAledRange;
         private Chart chartDrive;
         private Chart chartDetected;
         private Chart chartMultiplied;
@@ -65,6 +66,7 @@ namespace myDAQ2
             this.btnStart = new Button();
             this.btnStop = new Button();
             this.lblAled = new Label();
+            this.lblAledRange = new Label();
             this.chartDrive = new Chart();
             this.chartDetected = new Chart();
             this.chartMultiplied = new Chart();
@@ -140,6 +142,11 @@ namespace myDAQ2
             this.lblAled.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Bold);
             this.lblAled.AutoSize = true;
 
+            this.lblAledRange.Location = new Point(20, 425);
+            this.lblAledRange.Text = "A_LED (L-B) = 0.000 V";
+            this.lblAledRange.Font = new Font("Microsoft Sans Serif", 12F, FontStyle.Bold);
+            this.lblAledRange.AutoSize = true;
+
             // Setup Charts in a 2x2 Grid on the right side
             SetupChart(this.chartDrive, "Drive Signal (AI0)", SeriesChartType.Line, 280, 20, "Samples", "Voltage (V)");
             SetupChart(this.chartDetected, "Detected Signal (AI1)", SeriesChartType.Line, 700, 20, "Samples", "Voltage (V)");
@@ -150,7 +157,7 @@ namespace myDAQ2
             this.ClientSize = new Size(1120, 700);
             this.Controls.AddRange(new Control[] { this.cmbDevice, this.chkSaveData, this.numSampleRate, this.numSamples,
                                                    this.numLedAmp, this.numLedFreq, this.numLedOffset, this.numTimerInterval,
-                                                   this.btnStart, this.btnStop, this.lblAled,
+                                                   this.btnStart, this.btnStop, this.lblAled, this.lblAledRange,
                                                    this.chartDrive, this.chartDetected, this.chartMultiplied, this.chartLockIn,
                                                    lblDevice, lblInput1, lblInput2, lblInput3, lblInput4, lblInput5, lblInput6 });
             this.Name = "Form1";
@@ -297,6 +304,8 @@ namespace myDAQ2
                 // Execute finite read
                 double[,] data = readerAI.ReadMultiSample(samples);
                 double sumMult = 0;
+                double minDetectSig = double.MaxValue;
+                double maxDetectSig = double.MinValue;
 
                 chartDrive.Series[0].Points.Clear();
                 chartDetected.Series[0].Points.Clear();
@@ -315,13 +324,18 @@ namespace myDAQ2
                     chartMultiplied.Series[0].Points.AddY(multSig);
 
                     sumMult += multSig;
+                    if (detectSig < minDetectSig) minDetectSig = detectSig;
+                    if (detectSig > maxDetectSig) maxDetectSig = detectSig;
                 }
 
                 // Lock-In Calculation
                 double s_mean = sumMult / samples;
                 double a_led = (2.0 * s_mean) / a_g;
+                double a_led_range = (maxDetectSig - minDetectSig);
 
                 lblAled.Text = $"A_LED = {a_led:F4} V";
+                lblAledRange.Text = $"A_LED (L-B) = {a_led_range:F4} V";
+
                 chartLockIn.Series[0].Points.AddXY(measurementTick, a_led);
 
                 if (fileWriter != null)
